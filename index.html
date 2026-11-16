@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monaco Sunset GP</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #1a0f1e;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #f5f5f5;
+      user-select: none;
+    }
+
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    /* ======================================================================
+       1. HUD DE TELEMETRIA GRÁFICA (M1–M3: FPS, Draw Calls, Triangles, Texturas)
+       ====================================================================== */
+    #hud-overlay {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      background: rgba(15, 18, 28, 0.84);
+      border: 1px solid rgba(255, 150, 70, 0.45);
+      border-radius: 8px;
+      padding: 11px 15px;
+      min-width: 245px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    }
+
+    #hud-overlay h1 {
+      font-size: 13.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #ff9e57;
+      margin-bottom: 7px;
+      border-bottom: 1px solid rgba(255, 158, 87, 0.25);
+      padding-bottom: 4px;
+    }
+
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+      margin: 3.5px 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hud-label {
+      color: #cbd5e1;
+    }
+
+    .hud-value {
+      font-weight: 700;
+      color: #38bdf8;
+      font-family: Consolas, 'Courier New', monospace;
+    }
+
+    .hud-shortcuts {
+      margin-top: 8px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 11px;
+      line-height: 1.45;
+      color: #94a3b8;
+    }
+
+    .hud-shortcuts kbd {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 3px;
+      padding: 0 4px;
+      color: #f8fafc;
+      font-family: Consolas, monospace;
+      font-size: 10.5px;
+    }
+
+    /* ======================================================================
+       2. HUD DO JOGO DE DRIFT (M4: Placar, Multiplicador, Anel 3s, Velocímetro)
+       ====================================================================== */
+    #drift-hud-top {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .score-card {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      background: rgba(15, 18, 28, 0.85);
+      border: 1px solid rgba(255, 158, 87, 0.5);
+      border-radius: 12px;
+      padding: 8px 18px;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .score-block {
+      display: flex;
+      flex-direction: column;
+      min-width: 96px;
+    }
+
+    .score-block.pending {
+      text-align: right;
+    }
+
+    .score-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    .score-num {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: Consolas, 'Courier New', monospace;
+      font-variant-numeric: tabular-nums;
+      color: #f8fafc;
+    }
+
+    .score-block.pending .score-num {
+      color: #fbbf24;
+      text-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+    }
+
+    .score-sub {
+      font-size: 10.5px;
+      color: #cbd5e1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Anel de 3 segundos e Multiplicador central */
+    .mult-ring-wrapper {
+      position: relative;
+      width: 66px;
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mult-ring-svg {
+      position: absolute;
+      inset: 0;
+      width: 66px;
+      height: 66px;
+      transform: rotate(-90deg);
+    }
+
+    .mult-ring-bg {
+      fill: rgba(15, 23, 42, 0.85);
+      stroke: rgba(255, 255, 255, 0.14);
+      stroke-width: 5;
+    }
+
+    .mult-ring-fg {
+      fill: none;
+      stroke: #ff9e57;
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-dasharray: 176;
+      stroke-dashoffset: 0;
+      transition: stroke 0.15s ease;
+    }
+
+    .mult-value {
+      position: relative;
+      font-size: 21px;
+      font-weight: 900;
+      font-style: italic;
+      color: #ffbe85;
+      text-shadow: 0 0 12px rgba(255, 130, 50, 0.7);
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.18s;
+    }
+
+    .mult-value.pop {
+      transform: scale(1.42) rotate(-6deg);
+      color: #ff5ca8;
+      text-shadow: 0 0 18px rgba(255, 92, 168, 0.95);
+    }
+
+    /* Selo de Vitória após SUPERDRIFT */
+    #victory-badge {
+      display: none;
+      background: linear-gradient(90deg, rgba(255, 122, 47, 0.92), rgba(236, 72, 153, 0.92));
+      border: 1px solid rgba(255, 235, 180, 0.75);
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.7px;
+      padding: 4px 14px;
+      border-radius: 999px;
+      box-shadow: 0 2px 12px rgba(236, 72, 153, 0.55);
+    }
+
+    #victory-badge.visible {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Avisos rápidos ("DRIFT!", "TRANSIÇÃO +1", "BORDA!", "PONTOS PERDIDOS") */
+    #drift-event-banner {
+      min-height: 28px;
+      font-size: 19px;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: scale(0.8);
+      transition: opacity 0.15s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+
+    #drift-event-banner.active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* Painel inferior: Velocímetro (km/h) e Medidor de Ângulo de Drift */
+    #drift-hud-bottom {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: rgba(15, 18, 28, 0.84);
+      border: 1px solid rgba(255, 158, 87, 0.45);
+      border-radius: 12px;
+      padding: 8px 20px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .speedo-box {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      min-width: 102px;
+    }
+
+    #speed-kmh {
+      font-size: 28px;
+      font-weight: 900;
+      font-family: Consolas, monospace;
+      color: #f8fafc;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .speedo-unit {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ff9e57;
+      text-transform: uppercase;
+    }
+
+    .slip-gauge-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 170px;
+    }
+
+    .slip-gauge-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: #cbd5e1;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .slip-bar-track {
+      position: relative;
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .slip-bar-center {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(255, 255, 255, 0.5);
+      transform: translateX(-50%);
+    }
+
+    #slip-needle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 12px;
+      border-radius: 4px;
+      background: #38bdf8;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: background 0.12s;
+    }
+
+    /* ======================================================================
+       3. EFEITO ESPECIAL SUPERDRIFT (GLITCH + OVERSHOOT + FLASH + VINHETA)
+       ====================================================================== */
+    #offtrack-vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 12;
+      opacity: 0;
+      background: radial-gradient(circle, transparent 48%, rgba(220, 38, 38, 0.62) 100%);
+      transition: opacity 0.2s ease;
+    }
+
+    #offtrack-vignette.active {
+      opacity: 1;
+    }
+
+    #screen-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 25;
+      background: radial-gradient(circle, rgba(255, 230, 170, 0.88), rgba(255, 94, 150, 0.55));
+      opacity: 0;
+      transition: opacity 0.45s ease-out;
+    }
+
+    #screen-flash.flash {
+      opacity: 1;
+      transition: none;
+    }
+
+    #superdrift-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 24;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0.3);
+    }
+
+    #superdrift-overlay.active {
+      animation: superdriftEntrance 3.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .superdrift-glitch-wrap {
+      position: relative;
+      display: inline-block;
+      animation: superdriftTremor 0.11s infinite alternate;
+    }
+
+    .superdrift-text {
+      font-size: clamp(46px, 8vw, 94px);
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #fff3b0 0%, #ff9233 42%, #ff3d8b 82%, #b5179e 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 24px rgba(255, 110, 64, 0.95))
+              drop-shadow(0 8px 22px rgba(181, 23, 158, 0.85));
+      position: relative;
+    }
+
+    /* Fatias glitch horizontais */
+    .superdrift-text::before,
+    .superdrift-text::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #fff3b0 0%, #ff9233 45%, #ff3d8b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      pointer-events: none;
+    }
+
+    .superdrift-text::before {
+      clip-path: polygon(0 12%, 100% 12%, 100% 38%, 0 38%);
+      transform: translateX(-6px);
+      filter: drop-shadow(3px 0 0 #00f5d4);
+      animation: glitchSliceTop 0.24s infinite alternate-reverse;
+    }
+
+    .superdrift-text::after {
+      clip-path: polygon(0 62%, 100% 62%, 100% 88%, 0 88%);
+      transform: translateX(6px);
+      filter: drop-shadow(-3px 0 0 #ff007f);
+      animation: glitchSliceBottom 0.2s infinite alternate;
+    }
+
+    .superdrift-sub {
+      margin-top: 8px;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+      background: rgba(15, 18, 28, 0.78);
+      border: 1px solid rgba(255, 180, 100, 0.65);
+      padding: 5px 18px;
+      border-radius: 999px;
+    }
+
+    @keyframes superdriftEntrance {
+      0%   { opacity: 0; transform: scale(0.25) rotate(-8deg); }
+      14%  { opacity: 1; transform: scale(1.22) rotate(2deg); }
+      24%  { opacity: 1; transform: scale(0.95) rotate(-1deg); }
+      34%  { opacity: 1; transform: scale(1.04) rotate(0deg); }
+      82%  { opacity: 1; transform: scale(1.0) rotate(0deg); }
+      100% { opacity: 0; transform: scale(1.18) translateY(-18px); }
+    }
+
+    @keyframes superdriftTremor {
+      0%   { transform: translate(-2px, 1px); }
+      50%  { transform: translate(2px, -2px); }
+      100% { transform: translate(-1px, 2px); }
+    }
+
+    @keyframes glitchSliceTop {
+      0%   { transform: translateX(-7px) skewX(-6deg); }
+      100% { transform: translateX(6px) skewX(5deg); }
+    }
+
+    @keyframes glitchSliceBottom {
+      0%   { transform: translateX(7px) skewX(6deg); }
+      100% { transform: translateX(-6px) skewX(-4deg); }
+    }
+
+    /* ======================================================================
+       4. OVERLAY DE TUTORIAL INICIAL E BANNER DE PAUSA
+       ====================================================================== */
+    #tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(10, 12, 22, 0.78);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s ease;
+    }
+
+    #tutorial-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .tutorial-card {
+      max-width: 520px;
+      width: 92%;
+      background: rgba(18, 22, 36, 0.95);
+      border: 1px solid rgba(255, 158, 87, 0.65);
+      border-radius: 14px;
+      padding: 24px 28px;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+
+    .tutorial-card h2 {
+      font-size: 26px;
+      font-weight: 900;
+      font-style: italic;
+      background: linear-gradient(90deg, #ffbe76, #ff6b81);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .tutorial-card p {
+      font-size: 13.5px;
+      color: #cbd5e1;
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+
+    .tutorial-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 14px;
+      text-align: left;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      margin-bottom: 16px;
+    }
+
+    .tutorial-grid kbd {
+      background: rgba(255, 158, 87, 0.2);
+      border: 1px solid rgba(255, 158, 87, 0.5);
+      border-radius: 4px;
+      padding: 1px 6px;
+      color: #ffbe85;
+      font-family: Consolas, monospace;
+      font-weight: 700;
+    }
+
+    .tutorial-cta {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ff9e57;
+      letter-spacing: 0.6px;
+      animation: pulseCta 1.2s infinite alternate;
+    }
+
+    @keyframes pulseCta {
+      from { opacity: 0.65; transform: scale(0.98); }
+      to   { opacity: 1.0; transform: scale(1.03); }
+    }
+
+    #pause-banner {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 22;
+      background: rgba(15, 18, 28, 0.92);
+      border: 2px solid #ff9e57;
+      border-radius: 12px;
+      padding: 16px 32px;
+      font-size: 24px;
+      font-weight: 900;
+      color: #ffbe85;
+      letter-spacing: 2px;
+      pointer-events: none;
+    }
+
+    #pause-banner.visible {
+      display: block;
+    }
+
+    /* Divisor visual para o Item 4 (Viewport dividida com 2ª câmera) */
+    #split-screen-ui {
+      display: none;
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #split-screen-ui.active {
+      display: block;
+    }
+
+    .split-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      background: rgba(255, 158, 87, 0.85);
+      transform: translateX(-50%);
+    }
+
+    .viewport-badge {
+      position: absolute;
+      bottom: 14px;
+      background: rgba(15, 18, 28, 0.8);
+      border: 1px solid rgba(255, 158, 87, 0.45);
+      color: #ffbe85;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .viewport-badge.left {
+      left: 16px;
+    }
+
+    .viewport-badge.right {
+      left: calc(50% + 16px);
+    }
+  </style>
+</head>
+<body>
+  <!-- 1. HUD de telemetria gráfica (Item 5 do diagnóstico: FPS, draw calls, triângulos e texturas M3) -->
+  <div id="hud-overlay">
+    <h1>Monaco Sunset GP · M1–M4</h1>
+    <div class="hud-row">
+      <span class="hud-label">FPS:</span>
+      <span class="hud-value" id="hud-fps">0</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Draw Calls (vista 1):</span>
+      <span class="hud-value" id="hud-calls">0</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Triangles (vista 1):</span>
+      <span class="hud-value" id="hud-triangles">0</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Textures (GPU):</span>
+      <span class="hud-value" id="hud-textures">0</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Frustum Culling:</span>
+      <span class="hud-value" id="hud-culling">ON</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Velocidade:</span>
+      <span class="hud-value" id="hud-speed">0.0 m/s</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Áudio (Tecla M):</span>
+      <span class="hud-value" id="hud-audio">ATIVO</span>
+    </div>
+
+    <div class="hud-shortcuts">
+      <div><kbd>WASD</kbd>/<kbd>Setas</kbd> Dirigir · <kbd>Espaço</kbd> Drift</div>
+      <div><kbd>R</kbd> Reiniciar · <kbd>P</kbd> Pausa · <kbd>M</kbd> Mudo</div>
+      <div><kbd>1</kbd>–<kbd>5</kbd> Diagnóstico · <kbd>H</kbd> Painel GUI</div>
+    </div>
+  </div>
+
+  <!-- 2. HUD Superior Central do Jogo de Drift (Placar, Anel 3s, Multiplicador e Avisos) -->
+  <div id="drift-hud-top">
+    <div class="score-card">
+      <div class="score-block">
+        <span class="score-title">Total Guardado</span>
+        <span class="score-num" id="score-total">0</span>
+        <span class="score-sub">Recorde: <strong id="score-record">0</strong></span>
+      </div>
+
+      <div class="mult-ring-wrapper" title="Anel regressivo de 3s da sequência de drift">
+        <svg class="mult-ring-svg" viewBox="0 0 66 66">
+          <circle class="mult-ring-bg" cx="33" cy="33" r="28"></circle>
+          <circle class="mult-ring-fg" id="seq-ring-circle" cx="33" cy="33" r="28"></circle>
+        </svg>
+        <span class="mult-value" id="score-multiplier">x1</span>
+      </div>
+
+      <div class="score-block pending">
+        <span class="score-title">Pendentes (Sequência)</span>
+        <span class="score-num" id="score-pending">0</span>
+        <span class="score-sub">Melhor Seq.: <strong id="score-best-seq">0</strong></span>
+      </div>
+    </div>
+
+    <div id="victory-badge">
+      <span>★ VITÓRIA SUPERDRIFT</span>
+      <span style="opacity: 0.88; font-weight: 600;">Continue dirigindo · R reinicia</span>
+    </div>
+
+    <div id="drift-event-banner"></div>
+  </div>
+
+  <!-- 3. HUD Inferior Central (Velocímetro em km/h e Medidor de Ângulo de Drift) -->
+  <div id="drift-hud-bottom">
+    <div class="speedo-box">
+      <span id="speed-kmh">0</span>
+      <span class="speedo-unit">km/h</span>
+    </div>
+
+    <div class="slip-gauge-box">
+      <div class="slip-gauge-header">
+        <span>Ângulo de Drift</span>
+        <span id="slip-deg-val">0°</span>
+      </div>
+      <div class="slip-bar-track">
+        <div class="slip-bar-center"></div>
+        <div id="slip-needle"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Vinheta de Saída de Pista, Flash e Animação SUPERDRIFT -->
+  <div id="offtrack-vignette"></div>
+  <div id="screen-flash"></div>
+
+  <div id="superdrift-overlay">
+    <div class="superdrift-glitch-wrap">
+      <div class="superdrift-text" data-text="SUPERDRIFT!">SUPERDRIFT!</div>
+    </div>
+    <div class="superdrift-sub" id="superdrift-subtext">+25.000 PTS GUARDADOS!</div>
+  </div>
+
+  <!-- 5. Banner de Pausa e Overlay Inicial de Tutorial -->
+  <div id="pause-banner">JOGO PAUSADO (P)</div>
+
+  <div id="tutorial-overlay">
+    <div class="tutorial-card">
+      <h2>MONACO SUNSET GP</h2>
+      <p>
+        Acumule pontos derrapando nas curvas de Monte Carlo ao pôr do sol!
+        Inverta a direção em até <strong>1,5 s</strong> para ganhar <strong>TRANSIÇÃO +1</strong> e alcance
+        <strong>25.000 pontos</strong> na sequência (ou segure <strong>x20 por 3 s</strong>) para disparar o <strong>SUPERDRIFT</strong>!
+      </p>
+      <div class="tutorial-grid">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Setas</kbd> Dirigir</div>
+        <div><kbd>Espaço</kbd> Freio de mão (Drift)</div>
+        <div><kbd>R</kbd> Reiniciar carro e partida</div>
+        <div><kbd>P</kbd> Pausar · <kbd>M</kbd> Áudio mudo</div>
+        <div><kbd>1</kbd>–<kbd>5</kbd> Modos de Diagnóstico</div>
+        <div><kbd>H</kbd> Mostrar / Ocultar Painel</div>
+      </div>
+      <div class="tutorial-cta">Pressione qualquer tecla ou clique para iniciar</div>
+    </div>
+  </div>
+
+  <!-- Indicadores visuais quando a tela dividida (Item 4) está ativa -->
+  <div id="split-screen-ui">
+    <div class="split-line"></div>
+    <div class="viewport-badge left">Vista 1: Câmera 3ª Pessoa (Jogador)</div>
+    <div class="viewport-badge right">Vista 2: Câmera de Topo (CameraHelper / Frustum)</div>
+  </div>
+
+  <!-- Container do Canvas WebGL -->
+  <div id="app"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
