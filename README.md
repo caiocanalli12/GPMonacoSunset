@@ -17,7 +17,8 @@ Sobre a base completa dos três primeiros marcos da disciplina — pipeline de v
 - Ao atingir **25.000 pontos pendentes** na mesma sequência (ou sustentar `x20` por 3 segundos), o jogador conquista o estado especial **`SUPERDRIFT`**, com explosão de partículas, *camera shake*, efeito *glitch* no HUD e fanfarra sonora procedural, podendo continuar dirigindo para bater seu recorde salvo em `localStorage`.
 
 ### Vídeo de Demonstração (60 a 120 segundos)
-- **Link do Vídeo:** `A PREENCHER PELA DUPLA (cole aqui o link do YouTube Não Listado ou Google Drive)`
+- **Link do Vídeo (YouTube):** https://www.youtube.com/watch?v=mjOaUnsM0TY
+- **Repositório no GitHub:** https://github.com/caiocanalli12/GPMonacoSunset
 - **Roteiro utilizado:** [`docs/roteiro-video.md`](./docs/roteiro-video.md)
 
 ---
@@ -124,8 +125,8 @@ O estudo completo com a dedução matemática do *Z-Buffer* não-linear ($1/z_e$
 
 | Integrante | Marcos / Módulos sob Responsabilidade Principal | Contribuições Específicas e Testes Realizados |
 | :--- | :--- | :--- |
-| **Caio Canalli** | `A PREENCHER PELA DUPLA` | `A PREENCHER PELA DUPLA` |
-| **Davi Beli Rosa** | `A PREENCHER PELA DUPLA` | `A PREENCHER PELA DUPLA` |
+| **Caio Canalli** | **M1** (Câmera, cena e diagnóstico), **M2** (Luz e sombras) e **M4** (Integração e jogo de drift) | Projeto base com Vite e Three.js; cena, terreno, água e pista; câmera em 3ª pessoa e movimento independente de frame rate (`THREE.Timer`); modo diagnóstico (wireframe, profundidade, culling, frustum com `CameraHelper`, `renderer.info`); luzes e sombras com justificativa; física arcade do carro, HUD e vídeo/revisão final. |
+| **Davi Beli Rosa** | **M1** (Modelos carregados), **M3** (Texturas, materiais e ambiente) e **M4** (Integração e caso de diagnóstico) | Carregamento e integração dos 3 modelos (`OBJ` e `GLB`) com normalização via `Box3`; posicionamento dos barcos e prédios no cenário; materiais PBR, UV por comprimento de arco, normal/roughness maps; ambiente do pôr do sol (céu `Sky.js`, `PMREM`, névoa); caso de diagnóstico de *Z-Fighting* documentado; pontuação, efeitos e vídeo/revisão final. |
 
 ---
 
